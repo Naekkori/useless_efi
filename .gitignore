@@ -1,3 +1,5 @@
 /target
 ovmf_vars.fd
 /esp
+ovmf_code.fd
+ovmf_vars.fd
