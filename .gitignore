@@ -1,1 +1,3 @@
 /target
+ovmf_vars.fd
+esp/EFI/BOOT/BOOTX64.EFI

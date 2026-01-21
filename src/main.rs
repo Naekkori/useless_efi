@@ -3,15 +3,13 @@
 
 extern crate alloc;
 
-use uefi::cstr16;
 use uefi::prelude::*;
 use uefi::proto::console::gop::{BltOp, BltPixel, GraphicsOutput};
 use uefi::proto::media::file::{File, FileAttribute, FileMode, FileType};
-use uefi::system;
 
 #[entry]
 fn main() -> Status {
-    uefi::helpers::init().expect("Failed to initialize");
+    let _ = uefi::helpers::init();
 
     // GOP (Graphics Output Protocol) 초기화
     let gop_handle =
@@ -34,12 +32,8 @@ fn main() -> Status {
     }
 
     let (width, height) = gop.current_mode_info().resolution();
-    // 텍스트 모드로 정보를 출력해 봅니다.
-    system::with_stdout(|_std| {
-        uefi::println!("GOP Initialized: {}x{}", width, height);
-    });
 
-    // 화면 초기화 (검은색) - 이전 테스트 패턴 제거
+    // 화면 초기화 (검은색)
     gop.blt(BltOp::VideoFill {
         color: BltPixel::new(0, 0, 0),
         dest: (0, 0),
@@ -48,9 +42,6 @@ fn main() -> Status {
     .expect("Failed to clear screen");
 
     // 5. 파일 열기
-    system::with_stdout(|_std| {
-        uefi::println!("Opening message.txt...");
-    });
     let file_handle = match boot::get_image_file_system(boot::image_handle())
         .expect("Failed to get image file system")
         .open_volume()
@@ -60,16 +51,8 @@ fn main() -> Status {
             FileMode::Read,
             FileAttribute::empty(),
         ) {
-        Ok(h) => {
-            system::with_stdout(|_std| {
-                uefi::println!("File opened successfully.");
-            });
-            h
-        }
+        Ok(h) => h,
         Err(e) => {
-            system::with_stdout(|_std| {
-                uefi::println!("Error: message.txt not found! ({:?})", e);
-            });
             // 파일이 없으면 화면 전체를 빨간색으로 채워 시각적으로 알림
             let (w, h) = gop.current_mode_info().resolution();
             gop.blt(BltOp::VideoFill {
@@ -97,22 +80,14 @@ fn main() -> Status {
                 textbuff.push(l);
             }
 
-            system::with_stdout(|_std| {
-                uefi::println!("Lines loaded: {}", textbuff.len());
-            });
-
             let rect_size = 4;
             let start_x = 20;
-            let (width, height) = gop.current_mode_info().resolution();
+            let (width, _height) = gop.current_mode_info().resolution();
 
             // 상단 100픽셀 지점부터 800픽셀 높이의 영역만 사용
             let region_height = 800;
             let region_top = 100;
             let draw_y = region_top + region_height - rect_size;
-
-            system::with_stdout(|_std| {
-                uefi::println!("Render loop started with block optimization.");
-            });
 
             loop {
                 for (i, l) in textbuff.iter().enumerate() {
@@ -158,19 +133,19 @@ fn main() -> Status {
                         });
                     }
 
-                    if i % 10 == 0 {
-                        system::with_stdout(|_std| {
-                            uefi::print!(".");
-                        });
-                    }
                     boot::stall(core::time::Duration::from_millis(5));
                 }
-                system::with_stdout(|_std| {
-                    uefi::println!(" Done.");
-                });
                 boot::stall(core::time::Duration::from_secs(2));
             }
         }
         _ => Status::ABORTED,
+    }
+}
+
+#[cfg(not(test))]
+#[panic_handler]
+fn panic(_info: &core::panic::PanicInfo) -> ! {
+    loop {
+        core::hint::spin_loop();
     }
 }
